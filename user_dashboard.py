@@ -30,16 +30,33 @@ class BookQueryWindow(tk.Toplevel):
         self.geometry("800x600")
         self.configure(bg="#f0f5f9")
 
-        # 搜索框架
+        # 搜索框架 - 新增搜索条件选择
         search_frame = tk.Frame(self, bg="#f0f5f9")
         search_frame.pack(pady=10)
 
-        tk.Label(search_frame, text="书名:", bg="#f0f5f9").pack(side=tk.LEFT, padx=5)
+        # 搜索条件下拉框
+        tk.Label(search_frame, text="搜索条件:", bg="#f0f5f9").pack(side=tk.LEFT, padx=5)
+        self.search_type = tk.StringVar(value="title")  # 默认按书名搜索
+        search_types = {"书名": "title", "类型": "category", "状态": "status", "书号": "book_id"}
+        search_type_combo = ttk.Combobox(search_frame, textvariable=self.search_type, values=list(search_types.keys()),
+                                        width=10, state="readonly")
+        search_type_combo.pack(side=tk.LEFT, padx=5)
+
+        # 搜索输入框
+        tk.Label(search_frame, text="关键词:", bg="#f0f5f9").pack(side=tk.LEFT, padx=5)
         self.search_entry = tk.Entry(search_frame, width=30)
         self.search_entry.pack(side=tk.LEFT, padx=5)
 
-        tk.Button(search_frame, text="搜索", command=self.search_books, bg="#006699", fg="white").pack(side=tk.LEFT,
-                                                                                                       padx=5)
+        # 状态筛选
+        tk.Label(search_frame, text="状态:", bg="#f0f5f9").pack(side=tk.LEFT, padx=5)
+        self.status_var = tk.StringVar(value="全部")
+        status_options = ["全部", "可借阅", "已借出"]
+        status_combo = ttk.Combobox(search_frame, textvariable=self.status_var, values=status_options,
+                                   width=8, state="readonly")
+        status_combo.pack(side=tk.LEFT, padx=5)
+
+        # 搜索按钮
+        tk.Button(search_frame, text="搜索", command=self.search_books, bg="#006699", fg="white").pack(side=tk.LEFT, padx=5)
 
         # 创建表格
         columns = ("book_id", "title", "author", "category", "status")
@@ -56,35 +73,53 @@ class BookQueryWindow(tk.Toplevel):
         self.search_books()
 
     def search_books(self):
-        """搜索图书"""
+        """搜索图书 - 支持多条件筛选"""
+        # 获取搜索条件
+        search_type = self.search_type.get()  # 获取搜索类型（书名、类型等）
         keyword = self.search_entry.get().strip()
+        status = self.status_var.get()  # 获取状态筛选条件
 
         # 清空表格
         for item in self.book_tree.get_children():
             self.book_tree.delete(item)
 
         # 从数据库加载
-        conn = get_db_conn("library_db")  # 假设图书在library_db库中
+        conn = get_db_conn("library")
         if not conn:
             return
 
         try:
             with conn.cursor() as cursor:
-                if keyword:
-                    sql = "SELECT * FROM books WHERE title LIKE %s"
-                    cursor.execute(sql, (f"%{keyword}%",))
-                else:
-                    sql = "SELECT * FROM books LIMIT 50"
-                    cursor.execute(sql)
+                # 构建基础SQL和参数列表
+                sql = "SELECT * FROM books WHERE 1=1"
+                params = []
 
+                # 添加搜索条件
+                if keyword:
+                    # 根据搜索类型拼接不同的WHERE条件
+                    if search_type == "书名":
+                        sql += " AND title LIKE %s"
+                    elif search_type == "类型":
+                        sql += " AND category LIKE %s"
+                    elif search_type == "书号":
+                        sql += " AND book_id = %s"  # 书号精确匹配
+                    params.append(f"%{keyword}%" if search_type != "书号" else keyword)
+
+                # 添加状态筛选
+                if status != "全部":
+                    sql += " AND status = %s"
+                    params.append(status)
+
+                # 执行查询
+                cursor.execute(sql, params)
                 books = cursor.fetchall()
 
+                # 显示结果
                 for book in books:
-                    status_text = "已借出" if book["status"] == 1 else "可借阅"
                     self.book_tree.insert("", tk.END, values=(
                         book["book_id"], book["title"],
                         book["author"], book["category"],
-                        status_text
+                        book["status"]
                     ))
         except pymysql.MySQLError as e:
             messagebox.showerror("查询失败", f"错误：{str(e)}")
@@ -102,16 +137,20 @@ class ReturnBookWindow(tk.Toplevel):
         self.student_id = student_id
 
         # 创建表格
-        columns = ("borrow_id", "book_id", "title", "borrow_date", "due_date", "return_date")
+        columns = ("borrow_id", "book_id", "title", "author", "category", "borrow_date", "due_date", "return_date")
         self.borrow_tree = ttk.Treeview(self, columns=columns, show="headings")
 
         # 设置列标题
         for col in columns:
             self.borrow_tree.heading(col, text=col)
             if col == "title":
-                self.borrow_tree.column(col, width=200, anchor=tk.W)
+                self.borrow_tree.column(col, width=150, anchor=tk.W)
+            elif col == "author":
+                self.borrow_tree.column(col, width=100, anchor=tk.W)
+            elif col == "category":
+                self.borrow_tree.column(col, width=100, anchor=tk.W)
             else:
-                self.borrow_tree.column(col, width=120, anchor=tk.CENTER)
+                self.borrow_tree.column(col, width=100, anchor=tk.CENTER)
 
         self.borrow_tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
 
@@ -121,8 +160,8 @@ class ReturnBookWindow(tk.Toplevel):
 
         tk.Button(btn_frame, text="刷新", command=self.refresh_borrows, bg="#006699", fg="white").pack(side=tk.LEFT,
                                                                                                        padx=5)
-        tk.Button(btn_frame, text="归还选中图书", command=self.return_book, bg="#006699", fg="white").pack(side=tk.LEFT,
-                                                                                                           padx=5)
+        tk.Button(btn_frame, text="归还选中图书", command=self.show_return_confirmation, bg="#006699", fg="white").pack(
+            side=tk.LEFT, padx=5)
 
         # 初始加载借阅记录
         self.refresh_borrows()
@@ -134,17 +173,18 @@ class ReturnBookWindow(tk.Toplevel):
             self.borrow_tree.delete(item)
 
         # 从数据库加载
-        conn = get_db_conn("library_db")  # 假设借阅记录在library_db库中
+        conn = get_db_conn("borrow_records_db")
         if not conn:
             return
 
         try:
             with conn.cursor() as cursor:
-                # 联合查询获取图书信息
+                # 联合查询获取图书详细信息
                 sql = """
-                SELECT b.borrow_id, b.book_id, bo.title, b.borrow_date, b.due_date, b.return_date 
+                SELECT b.borrow_id, b.book_id, bo.title, bo.author, bo.category, 
+                       b.borrow_date, b.due_date, b.return_date 
                 FROM borrow_records b
-                JOIN books bo ON b.book_id = bo.book_id
+                JOIN library.books bo ON b.book_id = bo.book_id  
                 WHERE b.student_id = %s AND b.return_date IS NULL
                 ORDER BY b.borrow_date DESC
                 """
@@ -160,6 +200,8 @@ class ReturnBookWindow(tk.Toplevel):
                         borrow["borrow_id"],
                         borrow["book_id"],
                         borrow["title"],
+                        borrow["author"],
+                        borrow["category"],
                         borrow_date,
                         due_date,
                         return_date
@@ -169,45 +211,107 @@ class ReturnBookWindow(tk.Toplevel):
         finally:
             conn.close()
 
-    def return_book(self):
-        """归还选中的图书"""
+    def show_return_confirmation(self):
+        """显示归还确认对话框"""
         selected_item = self.borrow_tree.selection()
         if not selected_item:
             messagebox.showinfo("提示", "请先选择要归还的图书")
             return
 
         values = self.borrow_tree.item(selected_item[0])["values"]
-        borrow_id = values[0]
-        book_id = values[1]
-        title = values[2]
+        self.selected_borrow_id = values[0]
+        self.selected_book_id = values[1]
+        self.selected_title = values[2]
+        self.selected_author = values[3]
+        self.selected_category = values[4]
 
-        if messagebox.askyesno("确认", f"确定要归还《{title}》吗？"):
-            conn = get_db_conn("library_db")
-            if not conn:
+        # 创建确认对话框
+        self.confirm_window = tk.Toplevel(self)
+        self.confirm_window.title("确认归还图书")
+        self.confirm_window.geometry("400x300")
+        self.confirm_window.configure(bg="#f0f5f9")
+        self.confirm_window.transient(self)
+        self.confirm_window.grab_set()
+
+        # 显示图书信息
+        tk.Label(self.confirm_window, text="图书信息", font=("SimHei", 12, "bold"), bg="#f0f5f9").pack(pady=10)
+
+        info_frame = tk.Frame(self.confirm_window, bg="#f0f5f9")
+        info_frame.pack(pady=10)
+
+        tk.Label(info_frame, text="书名:", bg="#f0f5f9").grid(row=0, column=0, sticky=tk.W, pady=5)
+        tk.Label(info_frame, text=self.selected_title, bg="#f0f5f9").grid(row=0, column=1, sticky=tk.W, pady=5)
+
+        tk.Label(info_frame, text="作者:", bg="#f0f5f9").grid(row=1, column=0, sticky=tk.W, pady=5)
+        tk.Label(info_frame, text=self.selected_author, bg="#f0f5f9").grid(row=1, column=1, sticky=tk.W, pady=5)
+
+        tk.Label(info_frame, text="分类:", bg="#f0f5f9").grid(row=2, column=0, sticky=tk.W, pady=5)
+        tk.Label(info_frame, text=self.selected_category, bg="#f0f5f9").grid(row=2, column=1, sticky=tk.W, pady=5)
+
+        # 归还原因
+        tk.Label(self.confirm_window, text="归还原因:", bg="#f0f5f9").pack(pady=5, padx=20, anchor=tk.W)
+        self.return_reason = tk.Text(self.confirm_window, width=40, height=3)
+        self.return_reason.pack(pady=5, padx=20)
+
+        # 按钮框架
+        btn_frame = tk.Frame(self.confirm_window, bg="#f0f5f9")
+        btn_frame.pack(pady=15)
+
+        tk.Button(btn_frame, text="确认归还", command=self.confirm_return, bg="#006699", fg="white").pack(side=tk.LEFT,
+                                                                                                          padx=10)
+        tk.Button(btn_frame, text="取消", command=self.confirm_window.destroy, bg="#993333", fg="white").pack(
+            side=tk.LEFT, padx=10)
+
+    def confirm_return(self):
+        """确认归还图书"""
+        return_reason = self.return_reason.get("1.0", tk.END).strip()
+
+        if messagebox.askyesno("确认", f"确定要归还《{self.selected_title}》吗？"):
+            # 开始事务处理
+            borrow_conn = get_db_conn("borrow_records_db")
+            library_conn = get_db_conn("library")
+
+            if not borrow_conn or not library_conn:
+                if borrow_conn:
+                    borrow_conn.close()
+                if library_conn:
+                    library_conn.close()
                 return
 
             try:
-                with conn.cursor() as cursor:
-                    # 更新归还日期
-                    return_date = datetime.now().strftime("%Y-%m-%d")
+                with borrow_conn.cursor() as borrow_cursor, library_conn.cursor() as library_cursor:
+                    # 更新借阅记录
+                    return_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     sql = "UPDATE borrow_records SET return_date = %s WHERE borrow_id = %s"
-                    cursor.execute(sql, (return_date, borrow_id))
+                    borrow_cursor.execute(sql, (return_date, self.selected_borrow_id))
 
                     # 更新图书状态为可借阅
-                    sql = "UPDATE books SET status = 0 WHERE book_id = %s"
-                    cursor.execute(sql, (book_id,))
+                    sql = "UPDATE books SET status = 0, last_return_time = %s WHERE book_id = %s"
+                    library_cursor.execute(sql, (return_date, self.selected_book_id))
 
-                    conn.commit()
+                    # 记录归还日志（如果有日志表）
+                    if return_reason:
+                        log_sql = "INSERT INTO return_logs (book_id, student_id, return_date, reason) VALUES (%s, %s, %s, %s)"
+                        library_cursor.execute(log_sql,
+                                               (self.selected_book_id, self.student_id, return_date, return_reason))
+
+                    # 提交两个数据库的事务
+                    borrow_conn.commit()
+                    library_conn.commit()
+
                     messagebox.showinfo("成功", "归还图书成功")
                     self.refresh_borrows()
+                    self.confirm_window.destroy()
             except pymysql.MySQLError as e:
-                conn.rollback()
+                # 回滚两个数据库的事务
+                borrow_conn.rollback()
+                library_conn.rollback()
                 messagebox.showerror("归还失败", f"错误：{str(e)}")
             finally:
-                conn.close()
+                borrow_conn.close()
+                library_conn.close()
 
-
-# ----------------- 用户反馈窗口 -----------------
+            # ----------------- 用户反馈窗口 -----------------
 class UserFeedbackWindow(tk.Toplevel):
     def __init__(self, parent, student_id):
         super().__init__(parent)
@@ -217,15 +321,16 @@ class UserFeedbackWindow(tk.Toplevel):
         self.student_id = student_id
 
         # 获取用户信息
-        conn = get_db_conn("user_db")
+        conn = get_db_conn("user_db")  # 连接用户数据库
         if conn:
             try:
                 with conn.cursor() as cursor:
                     sql = "SELECT user_id FROM user_table WHERE student_id = %s"
-                    cursor.execute(sql, (student_id,))
+                    cursor.execute(sql, (self.student_id,))
                     user = cursor.fetchone()
                     self.user_id = user["user_id"] if user else None
-            except:
+            except pymysql.MySQLError as e:
+                messagebox.showerror("查询失败", f"错误：{str(e)}")
                 self.user_id = None
             finally:
                 conn.close()
@@ -252,7 +357,7 @@ class UserFeedbackWindow(tk.Toplevel):
             messagebox.showinfo("提示", "反馈内容不能为空")
             return
 
-        conn = get_db_conn("library_db")
+        conn = get_db_conn("feedback_db")  # 连接反馈数据库
         if not conn:
             return
 

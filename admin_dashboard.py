@@ -280,7 +280,7 @@ class BookManagerWindow(tk.Toplevel):
             self.book_tree.delete(item)
 
         # 从数据库加载
-        conn = get_db_conn("library_db")  # 假设图书在library_db库中
+        conn = get_db_conn("library")  # 假设图书在library_db库中
         if not conn:
             return
 
@@ -340,7 +340,7 @@ class BookManagerWindow(tk.Toplevel):
                 messagebox.showerror("错误", "书名、作者和分类不能为空")
                 return
 
-            conn = get_db_conn("library_db")
+            conn = get_db_conn("library")
             if not conn:
                 return
 
@@ -410,7 +410,7 @@ class BookManagerWindow(tk.Toplevel):
                 messagebox.showerror("错误", "书名、作者和分类不能为空")
                 return
 
-            conn = get_db_conn("library_db")
+            conn = get_db_conn("library")
             if not conn:
                 return
 
@@ -442,7 +442,7 @@ class BookManagerWindow(tk.Toplevel):
         book_id = values[0]
 
         if messagebox.askyesno("确认", f"确定要删除 ID 为 {book_id} 的图书吗？"):
-            conn = get_db_conn("library_db")
+            conn = get_db_conn("library")
             if not conn:
                 return
 
@@ -499,7 +499,7 @@ class FeedbackWindow(tk.Toplevel):
             self.feedback_tree.delete(item)
 
         # 从数据库加载
-        conn = get_db_conn("library_db")  # 假设反馈在library_db库中
+        conn = get_db_conn("feedback_db")  # 连接反馈数据库
         if not conn:
             return
 
@@ -508,8 +508,8 @@ class FeedbackWindow(tk.Toplevel):
                 # 联合查询获取用户名
                 sql = """
                 SELECT f.feedback_id, f.user_id, u.user_name, f.content, f.create_time 
-                FROM feedback f 
-                LEFT JOIN user_table u ON f.user_id = u.user_id
+                FROM feedback_db.feedback f 
+                LEFT JOIN user_db.user_table u ON f.user_id = u.user_id
                 ORDER BY f.create_time DESC
                 """
                 cursor.execute(sql)

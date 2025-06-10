@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox
 import pymysql  
+# 新增导入，用于打开对应功能面板
 import admin_dashboard  
 import user_dashboard  
 
