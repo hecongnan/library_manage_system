@@ -1,9 +1,10 @@
 import tkinter as tk
 from tkinter import messagebox
-import pymysql  
-# 新增导入，用于打开对应功能面板
+import pymysql
+# 假设存在这两个模块及对应函数，用于打开管理/用户面板
 import admin_dashboard  
 import user_dashboard  
+from PIL import Image, ImageTk  
 
 # 数据库连接配置
 DB_CONFIG = {
@@ -12,7 +13,6 @@ DB_CONFIG = {
     "password": "123456",
     "charset": "utf8mb4"
 }
-
 
 def get_database_connection(db_name):
     """获取数据库连接"""
@@ -23,16 +23,13 @@ def get_database_connection(db_name):
         messagebox.showerror("数据库连接失败", f"错误代码：{e.args[0]}\n错误信息：{e.args[1]}")
         return None
 
-
 def verify_user_login(username, password):
     """验证用户登录信息"""
     conn = get_database_connection("user_db")
     if not conn:
         return False
-
     try:
         with conn.cursor() as cursor:
-            # 按实际表结构，这里应该是 student_id 和 phone 匹配，注意原代码里表字段是 student_id、phone 等
             sql = "SELECT student_id FROM user_table WHERE student_id = %s AND phone = %s"
             cursor.execute(sql, (username, password))
             result = cursor.fetchone()
@@ -43,16 +40,13 @@ def verify_user_login(username, password):
     finally:
         conn.close()
 
-
 def verify_admin_login(username, password):
     """验证管理员登录信息"""
-    conn = get_database_connection("manager_db")
+    conn = get_database_connection("managers")
     if not conn:
         return False
-
     try:
         with conn.cursor() as cursor:
-            # 按实际表结构，job_number 和 phone 匹配
             sql = "SELECT job_number FROM managers WHERE job_number = %s AND phone = %s"
             cursor.execute(sql, (username, password))
             result = cursor.fetchone()
@@ -63,37 +57,31 @@ def verify_admin_login(username, password):
     finally:
         conn.close()
 
-
 def user_login():
     username = user_name.get()
     password = user_pwd.get()
     if verify_user_login(username, password):
         messagebox.showinfo("登录成功", f"欢迎回来，{username}！")
-        # 隐藏登录界面，打开用户功能面板
-        hide_login_frames()  
-        user_dashboard.show_user_dashboard(root, username)  
+        hide_login_frames()
+        user_dashboard.show_user_dashboard(root, username)
     else:
         messagebox.showerror("登录失败", "用户名或密码错误")
-
 
 def admin_login():
     admin_username = admin_name.get()
     admin_password = admin_pwd.get()
     if verify_admin_login(admin_username, admin_password):
         messagebox.showinfo("登录成功", f"管理员 {admin_username} 已登录")
-        # 隐藏登录界面，打开管理员功能面板
-        hide_login_frames()  
-        admin_dashboard.show_admin_dashboard(root, admin_username)  
+        hide_login_frames()
+        admin_dashboard.show_admin_dashboard(root, admin_username)
     else:
         messagebox.showerror("登录失败", "管理员账号或密码错误")
-
 
 def hide_login_frames():
     """隐藏登录相关的框架"""
     user_frame.pack_forget()
     admin_frame.pack_forget()
-    title_label.pack_forget()  
-
+    title_label.pack_forget()
 
 def toggle_login_mode():
     if user_frame.winfo_ismapped():
@@ -105,19 +93,30 @@ def toggle_login_mode():
         user_frame.pack(pady=20)
         title_label.config(text="图书馆管理系统 - 用户登录")
 
-
 root = tk.Tk()
 root.title("图书馆管理系统")
 root.geometry("1024x768")
-root.configure(bg="#f0f5f9")
 
-# 标题标签
-title_label = tk.Label(root, text="图书馆管理系统 - 用户登录", font=("微软雅黑", 36, "bold"),
+# 加载背景图片，替换为实际背景图路径，如 "your_bg.jpg"
+try:
+    bg_image = Image.open("library_background.jpg")  
+    bg_image = bg_image.resize((1024, 768), Image.LANCZOS)
+    bg_photo = ImageTk.PhotoImage(bg_image)
+    bg_canvas = tk.Canvas(root, width=1024, height=768)
+    bg_canvas.pack(fill="both", expand=True)
+    bg_canvas.create_image(0, 0, image=bg_photo, anchor="nw")
+    bg_canvas.image = bg_photo  
+except Exception as e:
+    print(f"加载背景图失败: {e}")
+    root.configure(bg="#f0f5f9")  
+
+# 标题标签，设置有效背景颜色
+title_label = tk.Label(bg_canvas, text="图书馆管理系统 - 用户登录", font=("微软雅黑", 36, "bold"),
                        fg="#006699", bg="#f0f5f9")
-title_label.pack(pady=60)
+bg_canvas.create_window(512, 60, window=title_label)
 
-main_frame = tk.Frame(root, bg="#f0f5f9")
-main_frame.pack(expand=True)
+main_frame = tk.Frame(bg_canvas, bg="#f0f5f9")
+bg_canvas.create_window(512, 384, window=main_frame)
 
 # 用户登录框架
 user_frame = tk.Frame(main_frame, bg="white", bd=2, relief="groove", padx=40, pady=30)
@@ -164,10 +163,10 @@ toggle_btn_admin = tk.Button(admin_frame, text="切换到用户登录", font=("�
                              bg="#f0f5f9", fg="#993333", command=toggle_login_mode)
 toggle_btn_admin.grid(row=4, column=0, columnspan=2, pady=5)
 
-# 页脚标签
-footer_label = tk.Label(root, text="© 2025 图书馆管理系统 | 版权所有", font=("微软雅黑", 10),
+# 页脚标签，设置有效背景颜色
+footer_label = tk.Label(bg_canvas, text="© 2025 图书馆管理系统 | 版权所有", font=("微软雅黑", 10),
                         fg="#666666", bg="#f0f5f9")
-footer_label.pack(side="bottom", pady=20)
+bg_canvas.create_window(512, 740, window=footer_label)
 
 # 绑定回车键事件
 root.bind('<Return>', lambda event: user_btn.invoke() if user_frame.winfo_ismapped() else admin_btn.invoke())
