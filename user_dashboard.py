@@ -399,6 +399,142 @@ class ReturnBookWindow(tk.Toplevel):
             conn.close()
 
 
+# ----------------- 借阅图书窗口 -----------------
+class BorrowBookWindow(tk.Toplevel):
+    def __init__(self, parent, student_id):
+        super().__init__(parent)
+        self.title("借阅图书")
+        self.geometry("500x400")
+        self.configure(bg="#f0f5f9")
+        self.student_id = student_id
+        # 用于存储查询到的图书信息，避免重复查询
+        self.book_info = None
+
+        # 标题
+        tk.Label(self, text="图书借阅", font=("微软雅黑", 16, "bold"),
+                 bg="#f0f5f9", fg="#006699").pack(pady=20)
+
+        # book_id输入框
+        input_frame = tk.Frame(self, bg="#f0f5f9")
+        input_frame.pack(pady=10, padx=20)
+
+        tk.Label(input_frame, text="图书ID:", bg="#f0f5f9").pack(side=tk.LEFT, padx=5)
+        self.book_id_var = tk.StringVar()
+        tk.Entry(input_frame, textvariable=self.book_id_var, width=15).pack(side=tk.LEFT, padx=5)
+
+        tk.Button(input_frame, text="查询图书", command=self.query_book,
+                  bg="#993333", fg="white").pack(side=tk.LEFT, padx=5)
+
+        # 图书信息显示区域
+        self.info_frame = tk.Frame(self, bg="#f0f5f9", bd=1, relief=tk.SUNKEN)
+        self.info_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        self.info_label = tk.Label(self.info_frame, text="请输入图书ID并查询",
+                                   bg="#f0f5f9", justify=tk.LEFT, wraplength=400)
+        self.info_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # 借阅按钮
+        self.borrow_btn = tk.Button(self, text="确认借阅", command=self.confirm_borrow,
+                                    bg="#006699", fg="white", state=tk.DISABLED)
+        self.borrow_btn.pack(pady=10)
+
+    def query_book(self):
+        """根据book_id查询图书信息"""
+        book_id = self.book_id_var.get().strip()
+        if not book_id:
+            messagebox.showinfo("提示", "请输入图书ID")
+            return
+
+        conn = get_db_conn("library")
+        if not conn:
+            return
+
+        try:
+            with conn.cursor() as cursor:
+                sql = "SELECT book_id, title, author, category, status FROM books WHERE book_id = %s"
+                cursor.execute(sql, (book_id,))
+                self.book_info = cursor.fetchone()
+
+                if not self.book_info:
+                    messagebox.showinfo("提示", f"未找到ID为{book_id}的图书")
+                    self.info_label.config(text="未找到图书信息")
+                    self.borrow_btn.config(state=tk.DISABLED)
+                    return
+
+                # 显示图书信息
+                info_text = f"图书ID: {self.book_info['book_id']}\n"
+                info_text += f"书名: {self.book_info['title']}\n"
+                info_text += f"作者: {self.book_info['author']}\n"
+                info_text += f"分类: {self.book_info['category']}\n"
+                info_text += f"状态: {self.book_info['status']}\n"
+                info_text += f"简介: {self.book_info.get('description', '无简介')}"
+
+                self.info_label.config(text=info_text)
+                self.borrow_btn.config(state=tk.NORMAL)
+
+        except pymysql.MySQLError as e:
+            messagebox.showerror("查询失败", f"错误：{str(e)}")
+        finally:
+            conn.close()
+
+    def confirm_borrow(self):
+        """确认借阅图书"""
+        if not self.book_info:
+            messagebox.showinfo("提示", "请先查询图书信息")
+            return
+
+        book_id = self.book_id_var.get().strip()
+        if not book_id:
+            messagebox.showinfo("提示", "请输入图书ID")
+            return
+
+        conn = get_db_conn("library")
+        if not conn:
+            return
+
+        try:
+            # 检查用户是否已经借阅了三本书
+            with conn.cursor() as cursor:
+                sql = "SELECT COUNT(*) as count FROM borrow_records WHERE student_id = %s AND return_date IS NULL"
+                cursor.execute(sql, (self.student_id,))
+                result = cursor.fetchone()
+                if result["count"] >= 3:
+                    messagebox.showinfo("提示", "您已经借阅了三本书，不能再借")
+                    return
+
+            # 检查图书是否可借阅，使用已查询的book_info
+            if self.book_info["status"] != "可借阅":
+                messagebox.showinfo("提示", "该图书不可借阅")
+                return
+
+            # 显示确认对话框
+            confirm = messagebox.askyesno("确认借阅", f"确定要借阅《{self.book_info['title']}》吗？")
+            if not confirm:
+                return
+
+            # 更新图书状态为“已借出”
+            with conn.cursor() as cursor:
+                sql = "UPDATE books SET status = '已借出' WHERE book_id = %s"
+                cursor.execute(sql, (book_id,))
+
+            # 插入借阅记录
+            borrow_date = datetime.now().strftime("%Y-%m-%d")
+            due_date = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+            with conn.cursor() as cursor:
+                sql = "INSERT INTO borrow_records (student_id, book_id, borrow_date, due_date, return_date) VALUES (%s, %s, %s, %s, NULL)"
+                cursor.execute(sql, (self.student_id, book_id, borrow_date, due_date))
+
+            conn.commit()
+            messagebox.showinfo("成功", "借阅成功，请在规定时间内归还")
+            self.destroy()
+
+        except pymysql.MySQLError as e:
+            conn.rollback()
+            messagebox.showerror("借阅失败", f"错误：{str(e)}")
+        finally:
+            conn.close()
+
+# 修改用户面板，添加借阅图书按钮
 def show_user_dashboard(root, student_id):
     user_dash = tk.Toplevel(root)
     user_dash.title(f"用户面板 - {student_id}")
@@ -436,6 +572,13 @@ def show_user_dashboard(root, student_id):
         command=lambda: BookQueryWindow(user_dash, student_id),
         **btn_style
     ).pack(pady=10, fill=tk.X)  # 水平填满，垂直间距10
+
+    tk.Button(
+        button_frame,
+        text="借阅图书",  # 新增的借阅图书按钮
+        command=lambda: BorrowBookWindow(user_dash, student_id),
+        **btn_style
+    ).pack(pady=10, fill=tk.X)
 
     tk.Button(
         button_frame,

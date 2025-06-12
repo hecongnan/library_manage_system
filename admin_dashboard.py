@@ -625,7 +625,6 @@ class FeedbackManagerWindow(tk.Toplevel):
         tk.Button(detail_window, text="关闭", command=detail_window.destroy, bg="#006699", fg="white").pack(pady=20)
 
 
-# ----------------- 管理员主界面 -----------------
 def show_admin_dashboard(root, admin_username):
     admin_dash = tk.Toplevel(root)
     admin_dash.title(f"管理员面板 - {admin_username}")
@@ -633,16 +632,21 @@ def show_admin_dashboard(root, admin_username):
     admin_dash.configure(bg="#f0f5f9")
 
     # 标题
-    tk.Label(admin_dash, text="管理员功能面板", font=("微软雅黑", 24, "bold"), fg="#006699", bg="#f0f5f9").pack(pady=20)
+    title_label = tk.Label(admin_dash, text="管理员功能面板", font=("微软雅黑", 24, "bold"), fg="#006699", bg="#f0f5f9")
+    title_label.pack(pady=20)
 
-    # 功能按钮
-    tk.Button(admin_dash, text="读者信息管理", font=("微软雅黑", 14), bg="#006699", fg="white",
-              command=lambda: ReaderManagerWindow(admin_dash)).pack(pady=10)
-    tk.Button(admin_dash, text="图书信息管理", font=("微软雅黑", 14), bg="#006699", fg="white",
-              command=lambda: BookManagerWindow(admin_dash)).pack(pady=10)
-    tk.Button(admin_dash, text="用户反馈管理", font=("微软雅黑", 14), bg="#006699", fg="white",
-              command=lambda: FeedbackManagerWindow(admin_dash)).pack(pady=10)
+    # 用于容纳按钮的框架，方便居中布局
+    button_frame = tk.Frame(admin_dash, bg="#f0f5f9")
+    button_frame.pack(pady=40)
 
-    # 返回登录界面按钮
-    tk.Button(admin_dash, text="退出登录", command=admin_dash.destroy,
-              bg="#006699", fg="white", width=15).pack(pady=10)
+    # 功能按钮，调整为和用户界面类似的尺寸、布局
+    tk.Button(button_frame, text="读者信息管理", font=("微软雅黑", 16), bg="#006699", fg="white",
+              command=lambda: ReaderManagerWindow(admin_dash), width=15, height=2).pack(pady=10)
+    tk.Button(button_frame, text="图书信息管理", font=("微软雅黑", 16), bg="#006699", fg="white",
+              command=lambda: BookManagerWindow(admin_dash), width=15, height=2).pack(pady=10)
+    tk.Button(button_frame, text="用户反馈管理", font=("微软雅黑", 16), bg="#006699", fg="white",
+              command=lambda: FeedbackManagerWindow(admin_dash), width=15, height=2).pack(pady=10)
+
+    # 返回登录界面按钮，风格贴近用户端退出按钮
+    tk.Button(button_frame, text="退出登录", command=admin_dash.destroy,
+              bg="#dc3545", fg="white", font=("微软雅黑", 16), width=10, height=2).pack(pady=20)

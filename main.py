@@ -1,12 +1,10 @@
 import tkinter as tk
 from tkinter import messagebox
 import pymysql
-# 假设存在这两个模块及对应函数，用于打开管理/用户面板
 import admin_dashboard  
-import user_dashboard  
+ import user_dashboard  
 from PIL import Image, ImageTk  
 
-# 数据库连接配置
 DB_CONFIG = {
     "host": "localhost",
     "user": "root",
@@ -42,7 +40,7 @@ def verify_user_login(username, password):
 
 def verify_admin_login(username, password):
     """验证管理员登录信息"""
-    conn = get_database_connection("managers")
+    conn = get_database_connection("manager_db")
     if not conn:
         return False
     try:
@@ -97,7 +95,6 @@ root = tk.Tk()
 root.title("图书馆管理系统")
 root.geometry("1024x768")
 
-# 加载背景图片，替换为实际背景图路径，如 "your_bg.jpg"
 try:
     bg_image = Image.open("library_background.jpg")  
     bg_image = bg_image.resize((1024, 768), Image.LANCZOS)
@@ -125,21 +122,31 @@ tk.Label(user_frame, text="用户登录", font=("微软雅黑", 20, "bold"), fg=
                                                                                                     columnspan=2,
                                                                                                     pady=10)
 
-tk.Label(user_frame, text="用户名：", font=("微软雅黑", 14), bg="white").grid(row=1, column=0, sticky="e", pady=10)
-user_name = tk.Entry(user_frame, font=("微软雅黑", 12), width=20)
-user_name.grid(row=1, column=1, pady=10)
+# 添加登录提示信息
+hint_label = tk.Label(user_frame, 
+                     text="提示：用户名为学号，密码为手机号", 
+                     font=("微软雅黑", 10), 
+                     fg="#ff6600", 
+                     bg="white",
+                     justify="left",
+                     wraplength=250)
+hint_label.grid(row=1, column=0, columnspan=2, pady=(0, 10), sticky="w")
 
-tk.Label(user_frame, text="密码：", font=("微软雅黑", 14), bg="white").grid(row=2, column=0, sticky="e", pady=10)
+tk.Label(user_frame, text="用户名：", font=("微软雅黑", 14), bg="white").grid(row=2, column=0, sticky="e", pady=10)
+user_name = tk.Entry(user_frame, font=("微软雅黑", 12), width=20)
+user_name.grid(row=2, column=1, pady=10)
+
+tk.Label(user_frame, text="密码：", font=("微软雅黑", 14), bg="white").grid(row=3, column=0, sticky="e", pady=10)
 user_pwd = tk.Entry(user_frame, font=("微软雅黑", 12), width=20, show="*")
-user_pwd.grid(row=2, column=1, pady=10)
+user_pwd.grid(row=3, column=1, pady=10)
 
 user_btn = tk.Button(user_frame, text="登录", font=("微软雅黑", 14), bg="#006699", fg="white",
                      command=user_login, width=10, height=1)
-user_btn.grid(row=3, column=0, columnspan=2, pady=10)
+user_btn.grid(row=4, column=0, columnspan=2, pady=10)
 
 toggle_btn = tk.Button(user_frame, text="切换到管理员登录", font=("微软雅黑", 10),
                        bg="#f0f5f9", fg="#006699", command=toggle_login_mode)
-toggle_btn.grid(row=4, column=0, columnspan=2, pady=5)
+toggle_btn.grid(row=5, column=0, columnspan=2, pady=5)
 
 # 管理员登录框架
 admin_frame = tk.Frame(main_frame, bg="white", bd=2, relief="groove", padx=40, pady=30)
